@@ -51,9 +51,6 @@ int get_next(int edge, int length){
   }
 }
 
-int log2 (int x) {
-  return (int)(log(x) / log(2));
-}
 
 int main(int argc, char **argv) {
   int numprocs;               // number of cpus obtained from mpi
@@ -73,63 +70,64 @@ int main(int argc, char **argv) {
   char euler_tour[edges_num];
 
   if (myid == 0) {
-    printf("%2d: Will do %2d iterations\n",myid, (int)log2(edges_num));
+    printf("%2d: Will do %2d iterations\n",myid, (int)ceil(log2((double)edges_num)));
     for (size_t i = 0; i < edges_num; i++) { // init edges with numbers
-      edges[i] = i;
-      printf("%2d",edges[i]+1 );
+      edges[i] = i+1;
+      printf("%2d",edges[i] );
     }
     printf("\n");
     for (size_t i = 0; i < edges_num; i++) { // init edges with numbers
-      edges[i] = i;
-      printf("%2d",get_next(edges[i]+1,n) );
+      printf("%2d",get_next(edges[i],n) );
     }
     printf("\n");
+    printf("%2d\n",edges_num);
   }
-  int edge;
   // obtain the subarray (sub_nums) for every proc
+  int edge;
   MPI_Scatter(edges, 1, MPI_INT, &edge, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
   euler_tour[myid] = get_next(edge+1,n);
 
   int last = 0, succ = 0;
   if (myid == edges_num-1) {
+    // printf("LAST CPU: %d\n",myid );
     last = edge;
     edge = 0;
-    succ = myid;
+    succ = edges_num-1;
   } else {
+    // printf("CPU: %2d SUCC: %2d\n",myid, myid+1 );
     succ = myid+1;
     edge = 1;
   };
 
   int tmp = 0;
-  for (size_t i = 1; i <= (int)log2(edges_num); i++) {
-    if (myid == succ || succ == edges_num-1) {
-      int sendto = myid-i;
+  for (size_t i = 1; i <= (int)ceil(log2((double)edges_num)); i++) {
+    if (succ == edges_num-1) {
+      int sendto = myid-(int)pow(2,i-1);
       if (sendto > -1) {
-        // printf("CPU:%d i:%d SENDING %2d\n",myid, i, sendto);
+        printf("1.CPU:%d i:%d SENDING \t\t%2d\n",myid, i, sendto);
         MPI_Send(&edge, 1, MPI_INT, sendto, TAG, MPI_COMM_WORLD);
-        continue; // We have the result, nothing to compute
-      } else {
-        break;    // I am no successor, quitz`
       }
+      continue; // We have the result, nothing to compute
     }
     else if (myid == 0) {
-      // printf("CPU:%d i:%d WAITING\n",myid, i);
+      printf("5.CPU:%d i:%d WAITING for  \t%2d \t my: %2d\n",myid, i, succ, edge);
       MPI_Recv(&tmp, 1, MPI_INT, succ, TAG, MPI_COMM_WORLD, &stat);
-      // printf("CPU:%d i:%d RECEIVED %2d\n",myid, i, tmp);
+      printf("3.CPU:%d i:%d RECEIVED \t\t%2d\n",myid, i, tmp);
     } else {
-      int sendto = myid-i;
+      int sendto = myid-(int)pow(2,i-1);
       if (sendto > -1) {
-        // printf("CPU:%d i:%d SENDING %2d\n",myid, i, sendto);
+        printf("4.CPU:%d i:%d SENDING \t\t%2d\n",myid, i, sendto);
         MPI_Send(&edge, 1, MPI_INT, sendto, TAG, MPI_COMM_WORLD);
       }
-      // printf("CPU:%d i:%d WAITING for  %2d\n",myid, i, succ);
+      printf("5.CPU:%d i:%d WAITING for  \t%2d\n",myid, i, succ);
       MPI_Recv(&tmp, 1, MPI_INT, succ, TAG, MPI_COMM_WORLD, &stat);
-      // printf("CPU:%d i:%d RECEIVED %2d:\n",myid, i, tmp);
+      printf("6.CPU:%d i:%d RECEIVED \t\t%2d:\n",myid, i, tmp);
     }
     edge += tmp;
     succ += i;
     if (succ >= edges_num-1) {
+      // printf("%2d, cycle:%2d reached %2d , setting succ: %2d\n", myid, i, succ, edges_num-1 );
       succ = edges_num-1;
     }
   }
