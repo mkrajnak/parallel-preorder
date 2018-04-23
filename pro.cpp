@@ -51,6 +51,10 @@ int get_next(int edge, int length){
   }
 }
 
+int log2 (int x) {
+  return (int)(log(x) / log(2));
+}
+
 int main(int argc, char **argv) {
   int numprocs;               // number of cpus obtained from mpi
   int myid;                   // cpu identifier
@@ -69,6 +73,7 @@ int main(int argc, char **argv) {
   char euler_tour[edges_num];
 
   if (myid == 0) {
+    printf("%2d: Will do %2d iterations\n",myid, (int)log2(edges_num));
     for (size_t i = 0; i < edges_num; i++) { // init edges with numbers
       edges[i] = i;
       printf("%2d",edges[i]+1 );
@@ -95,10 +100,9 @@ int main(int argc, char **argv) {
     succ = myid+1;
     edge = 1;
   };
-  // printf("%2d: Will do %2d iterations\n",myid, (int)log(edges_num));
 
   int tmp = 0;
-  for (size_t i = 1; i <= edges_num; i++) {
+  for (size_t i = 1; i <= (int)log2(edges_num); i++) {
     if (myid == succ || succ == edges_num-1) {
       int sendto = myid-i;
       if (sendto > -1) {
