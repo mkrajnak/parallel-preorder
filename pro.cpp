@@ -98,8 +98,10 @@ int main(int argc, char **argv) {
       if (sendto > -1) {
         // printf("CPU:%d i:%d SENDING %2d\n",myid, i, sendto);
         MPI_Send(&edge, 1, MPI_INT, sendto, TAG, MPI_COMM_WORLD);
+        continue; // We have the result, nothing to compute
+      } else {
+        break;    // I am no successor, quit
       }
-      continue; // We have the result, nothing to compute
     }
     else if (myid == 0) {
       // printf("CPU:%d i:%d WAITING\n",myid, i);
