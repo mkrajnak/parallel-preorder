@@ -65,6 +65,8 @@ int main(int argc, char **argv) {
   size_t edges_num = 2*n-2;
 
   int edges[edges_num];
+  int rank[edges_num];
+  int euler_tour[edges_num];
 
   if (myid == 0) {
     for (size_t i = 0; i < edges_num; i++) { // init edges with numbers
@@ -72,13 +74,49 @@ int main(int argc, char **argv) {
       //printf("%2d:%2d\n",i,edges[i] );
     }
   }
-  int edge[1];
+  int edge;
   // obtain the subarray (sub_nums) for every proc
-  MPI_Scatter(edges, 1, MPI_INT, edge, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Scatter(edges, 1, MPI_INT, &edge, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-  //printf("%2d:E%2d\n",myid, edge[0]);
-  printf("%2d:%2d\n",myid+1, get_next(edge[0]+1,n));
-  //MPI_Gather(edge, 1, MPI_INT, edges, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  rank[myid] = euler_tour[myid] = get_next(edge+1,n);
+
+  int last = 0, succ = 0;
+  if (myid == edges_num-1) {
+    last = edge;
+    edge = 0;
+    succ = myid;
+  } else {
+    succ = myid+1;
+    edge = 1;
+  };
+  printf("%2d: Will do %2d oterations\n",myid, (int)log(edges_num));
+
+  int tmp = 0;
+  for (size_t i = 0; i < log(edges_num); i++) {
+    if (myid == succ) {
+      printf("%2d:LOOPING\n",myid);
+      MPI_Send(&edge, 1, MPI_INT, edges_num-succ, TAG, MPI_COMM_WORLD);
+    } else if (succ >= edges_num-1){
+      printf("%2d:LEL\n",myid);
+    }
+     else if (myid == 0){
+      printf("%2d:WAITING\n",myid);
+      MPI_Recv(&tmp, 1, MPI_INT, succ, TAG, MPI_COMM_WORLD, &stat);
+      printf("%2d:RECEIVED %2d\n",myid, tmp);
+      rank[myid] += tmp;
+      succ += 2;
+    } else {
+      printf("%2d:SENDING\n",myid);
+      MPI_Send(&edge, 1, MPI_INT, succ, TAG, MPI_COMM_WORLD);
+      printf("%2d:WAITING\n",myid);
+      MPI_Recv(&tmp, 1, MPI_INT, succ, TAG, MPI_COMM_WORLD, &stat);
+      printf("%2d:RECEIVED %2d:\n",myid, tmp);
+      rank[myid] += tmp;
+      succ += 2;
+    }
+  }
+  printf("%2d:END%2d\n",myid, rank[myid]);
+  //MPI_Gather(&edge, 1, MPI_INT, edges, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
   MPI_Finalize();
   return 0;
