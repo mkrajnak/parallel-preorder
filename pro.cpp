@@ -71,14 +71,20 @@ int main(int argc, char **argv) {
   if (myid == 0) {
     for (size_t i = 0; i < edges_num; i++) { // init edges with numbers
       edges[i] = i;
-      //printf("%2d:%2d\n",i,edges[i] );
+      printf("%2d",edges[i]+1 );
     }
+    printf("\n");
+    for (size_t i = 0; i < edges_num; i++) { // init edges with numbers
+      edges[i] = i;
+      printf("%2d",get_next(edges[i]+1,n) );
+    }
+    printf("\n");
   }
   int edge;
   // obtain the subarray (sub_nums) for every proc
   MPI_Scatter(edges, 1, MPI_INT, &edge, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-  rank[myid] = euler_tour[myid] = get_next(edge+1,n);
+  euler_tour[myid] = get_next(edge+1,n);
 
   int last = 0, succ = 0;
   if (myid == edges_num-1) {
@@ -100,7 +106,7 @@ int main(int argc, char **argv) {
         MPI_Send(&edge, 1, MPI_INT, sendto, TAG, MPI_COMM_WORLD);
         continue; // We have the result, nothing to compute
       } else {
-        break;    // I am no successor, quit
+        break;    // I am no successor, quitz`
       }
     }
     else if (myid == 0) {
@@ -123,8 +129,15 @@ int main(int argc, char **argv) {
       succ = edges_num-1;
     }
   }
-  printf("CPU:%2d Calculated %2d:succ %2d\n", myid, edges_num - edge, succ);
-  //MPI_Gather(&edge, 1, MPI_INT, edges, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  // printf("CPU:%2d Calculated %2d:succ %2d\n", myid, edges_num - edge, succ);
+  MPI_Gather(&edge, 1, MPI_INT, rank, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  if (myid == 0) {
+    for (size_t i = 0; i < edges_num; i++) { // init edges with numbers
+      printf("%2d",edges_num-rank[i]);
+    }
+    printf("\n");
+  }
 
   MPI_Finalize();
   return 0;
