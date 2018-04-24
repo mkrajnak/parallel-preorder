@@ -1,5 +1,6 @@
-/*  Project: merge-splitting sort, project for PRL course at FIT BUT
-    Author: Martin Krajnak
+/*  Project: Paraller preorder with list ranking,
+*   project for PRL course at FIT BUT
+*   Author: Martin Krajnak, xkrajn02@vutbr.cz
 */
 
 #include <math.h>
@@ -13,7 +14,9 @@
 #include <climits>
 
 using namespace std;
-#define TAG 0
+#define PRD_TAG 0       // compute predecessor
+#define LR_TAG 1        // list ranking
+#define PRORDR_TAG 2    // preorder
 
 /**
 * Determine vertex to which given edge leads
@@ -57,98 +60,81 @@ int main(int argc, char **argv) {
   int myid;                   // cpu identifier
   MPI_Status stat;
 
+  size_t n = strlen(argv[1]);
+  size_t edges_num = 2*n-2;   // edge count
+  int edges[edges_num];
+  int ranks[edges_num];
+
   MPI_Init(&argc,&argv);                          // MPI init
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);       // obtain numprocs
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);           // obtain of of each proc
 
-  //printf("%s\n",argv[1]);
-  size_t n = strlen(argv[1]);
-  size_t edges_num = 2*n-2;
-
-  int edges[edges_num];
-
   if (myid == 0) {
-    // printf("%2d: %2d iterations on %2d\n",myid, (int)ceil(log2((double)edges_num)), edges_num);
     for (size_t i = 0; i < edges_num; i++) { // init edges with numbers
       edges[i] = i+1;
-      printf("%3d",edges[i]);
     }
-    printf("\n");
-    for (size_t i = 0; i < edges_num; i++) { // init edges with numbers
-      printf("%3d",get_next(edges[i],n) );
-    }
-    printf("\n");
   }
-  // obtain the subarray (sub_nums) for every proc
+  // every cpu has 1 edge
   int edge;
   MPI_Scatter(edges, 1, MPI_INT, &edge, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  int rank = 0, pred = -1, succ = -1;
-  int my_id = myid+1;
-  int euler_tour = get_next(edge,n);
-  // printf("%2d:%2d\n",my_id, edge );
+  int rank = 0, pred = -1, succ = -1, temp = 0;
+  int my_id = myid+1;   // helper value, counting cpus from 1
 
+  // calculatre successors
+  int euler_tour = get_next(edge,n);
   if (edge == euler_tour) {
-    succ = -1;
+    succ = -1;          // last edge has no successor, rank remain 0
   } else {
     rank = 1;
-    succ = euler_tour;
+    succ = euler_tour;  // sucessor is calculated via euler tour
   }
-  // printf("%2d:%2d\n",my_id, succ );
-  if (succ != -1 ) {
-    MPI_Send(&my_id, 1, MPI_INT, succ-1, TAG, MPI_COMM_WORLD);
-  }
-  if (myid != 0) {
-    MPI_Recv(&pred, 1, MPI_INT, MPI_ANY_SOURCE, TAG, MPI_COMM_WORLD, &stat);
-  }
-  MPI_Barrier(MPI_COMM_WORLD);
-  if (get_next(pred,n) != edge) {
-    printf("BLYAT:%2d,Next:%2d,Pred%2d,Rank%2d\n",my_id, succ, pred, rank);
-  }
-
-  // printf("edges_num%2d\n",edges_num );
-  int tmp;
+  // each cpu except last sends his ID to his sucessor to calulate predecessor
+  if (succ != -1 )
+    MPI_Send(&my_id, 1, MPI_INT, succ-1, PRD_TAG , MPI_COMM_WORLD);
+  if (myid != 0)
+    MPI_Recv(&pred, 1, MPI_INT, MPI_ANY_SOURCE, PRD_TAG, MPI_COMM_WORLD, &stat);
+  // All cpus need to have predecessors before the list ranking starts
   for (size_t i = 1; i <= (int)ceil(log2((double)edges_num)); i++) {
-    printf("my_id:%2d, I:%2d, succ:%2d pred:%2d\n", my_id, i, succ, pred);
-    if (succ==-1) {
-      printf("1.CPU:%2d i:%2d WAIT\n",my_id, i, pred);
-      MPI_Send(&rank, 1, MPI_INT, pred-1, TAG, MPI_COMM_WORLD);
-      MPI_Send(&succ, 1, MPI_INT, pred-1, TAG, MPI_COMM_WORLD);
-      MPI_Recv(&pred, 1, MPI_INT, pred-1, TAG, MPI_COMM_WORLD, &stat);
-      printf("1.CPU:%2d i:%2d END\n",my_id, i, pred);
+    if (succ==-1) {     // edges that dont have successor
+      MPI_Send(&rank, 1, MPI_INT, pred-1, LR_TAG, MPI_COMM_WORLD);
+      MPI_Send(&succ, 1, MPI_INT, pred-1, LR_TAG, MPI_COMM_WORLD);
+      MPI_Recv(&pred, 1, MPI_INT, pred-1, LR_TAG, MPI_COMM_WORLD, &stat);
+      continue;         // reached the end nothing to add
     }
-    else if (myid==0) {
-      printf("2.CPU:%2d i:%2d WAIT\n",my_id, i, pred);
-      MPI_Recv(&tmp, 1, MPI_INT, succ-1, TAG, MPI_COMM_WORLD, &stat);
-      MPI_Recv(&succ, 1, MPI_INT, succ-1, TAG, MPI_COMM_WORLD, &stat);
-      MPI_Send(&pred, 1, MPI_INT, succ-1, TAG, MPI_COMM_WORLD);
-      printf("2.CPU:%2d i:%2d END\n",my_id, i, pred);
-      rank += tmp;
-    } else {
-      printf("3.CPU:%2d i:%2d WAIT\n",my_id, i, pred);
-      MPI_Send(&rank, 1, MPI_INT, pred-1, TAG, MPI_COMM_WORLD);
-      MPI_Send(&succ, 1, MPI_INT, pred-1, TAG, MPI_COMM_WORLD);
-      MPI_Send(&pred, 1, MPI_INT, succ-1, TAG, MPI_COMM_WORLD);
-      MPI_Recv(&tmp, 1, MPI_INT, succ-1, TAG, MPI_COMM_WORLD, &stat);
-      MPI_Recv(&succ, 1, MPI_INT, succ-1, TAG, MPI_COMM_WORLD, &stat);
-      printf("3.2CPU:%2d i:%2d WAIT\n",my_id, i, pred);
-      MPI_Recv(&pred, 1, MPI_INT, pred-1, TAG, MPI_COMM_WORLD, &stat);
-      printf("3.CPU:%2d i:%2d WAIT\n",my_id, i, pred);
-      rank += tmp;
+    else if (myid==0) { // first cpu, doesnt have predecessor
+      MPI_Send(&pred, 1, MPI_INT, succ-1, LR_TAG, MPI_COMM_WORLD);
+      MPI_Recv(&temp, 1, MPI_INT, succ-1, LR_TAG, MPI_COMM_WORLD, &stat);
+      MPI_Recv(&succ, 1, MPI_INT, succ-1, LR_TAG, MPI_COMM_WORLD, &stat);
+    } else {            // middle
+      MPI_Send(&rank, 1, MPI_INT, pred-1, LR_TAG, MPI_COMM_WORLD);
+      MPI_Send(&succ, 1, MPI_INT, pred-1, LR_TAG, MPI_COMM_WORLD);
+      MPI_Send(&pred, 1, MPI_INT, succ-1, LR_TAG, MPI_COMM_WORLD);
+      MPI_Recv(&temp, 1, MPI_INT, succ-1, LR_TAG, MPI_COMM_WORLD, &stat);
+      MPI_Recv(&succ, 1, MPI_INT, succ-1, LR_TAG, MPI_COMM_WORLD, &stat);
+      MPI_Recv(&pred, 1, MPI_INT, pred-1, LR_TAG, MPI_COMM_WORLD, &stat);
     }
-
+    rank += temp;           // add value received from successor
   }
-  MPI_Barrier(MPI_COMM_WORLD);
-  printf("%2d,%2d\n",my_id, rank);
-  // printf("1.Myid:%2d,Next:%2d,Pred%2d,Rank%2d\n",myid+1, succ+1, pred, rank);
-  // MPI_Gather(&edge, 1, MPI_INT, rank, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  //
-  // if (myid == 0) {
-  //   for (size_t i = 0; i < edges_num; i++) { // init edges with numbers
-  //     printf("%2d",edges_num-rank[i]);
-  //   }
-  //   printf("\n");
-  // }
-
+  rank = edges_num - rank;  // distance to end -> distance to end
+  // sort by sending id to rank
+  MPI_Send(&my_id, 1, MPI_INT, rank-1, PRORDR_TAG , MPI_COMM_WORLD);
+  MPI_Recv(&rank, 1, MPI_INT, MPI_ANY_SOURCE, PRORDR_TAG, MPI_COMM_WORLD, &stat);
+  // filter the edges
+  if (rank%2 != 0)      // we need only the odd "forward" edges
+    rank = (rank+1)/2;  // calculate the vertex in which edge lead
+  else
+    rank = -1;          // discarding the odd ones
+  // collect calculated values
+  MPI_Gather(&rank, 1, MPI_INT, ranks, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  if (myid == 0) {                        // print result
+    printf("%c",argv[1][0]);              // first vertex is always root
+    for (size_t i = 0; i < edges_num; i++) {
+      if (ranks[i] !=-1) {
+        printf("%c",argv[1][ranks[i]]);   // print preorder
+      }
+    }
+    printf("\n");
+  }
   MPI_Finalize();
   return 0;
  }
