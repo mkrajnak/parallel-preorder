@@ -69,17 +69,9 @@ int main(int argc, char **argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);       // obtain numprocs
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);           // obtain of of each proc
 
-  if (myid == 0) {
-    for (size_t i = 0; i < edges_num; i++) { // init edges with numbers
-      edges[i] = i+1;
-    }
-  }
-  // every cpu has 1 edge
-  int edge;
-  MPI_Scatter(edges, 1, MPI_INT, &edge, 1, MPI_INT, 0, MPI_COMM_WORLD);
   int rank = 0, pred = -1, succ = -1, temp = 0;
   int my_id = myid+1;   // helper value, counting cpus from 1
-
+  int edge = my_id;     // assign edge for every cpu
   // calculatre successors
   int euler_tour = get_next(edge,n);
   if (edge == euler_tour) {
