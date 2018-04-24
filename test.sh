@@ -17,7 +17,7 @@ if [[ $compile != 0 ]];then
 fi;
 
 # Run
-mpirun --prefix /usr/local/share/OpenMPI --use-hwthread-cpus -np $cpus pro $1;
+mpirun --prefix /usr/local/share/OpenMPI  -np $cpus pro $1;
 
 # Cleanup
 rm -f pro numbers
