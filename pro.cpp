@@ -54,7 +54,6 @@ int get_next(int edge, int length){
   }
 }
 
-
 int main(int argc, char **argv) {
   int numprocs;               // number of cpus obtained from mpi
   int myid;                   // cpu identifier
@@ -72,7 +71,7 @@ int main(int argc, char **argv) {
   int rank = 0, pred = -1, succ = -1, temp = 0;
   int my_id = myid+1;   // helper value, counting cpus from 1
   int edge = my_id;     // assign edge for every cpu
-  // calculatre successors
+  // calculate successors
   int euler_tour = get_next(edge,n);
   if (edge == euler_tour) {
     succ = -1;          // last edge has no successor, rank remain 0
